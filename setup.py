@@ -18,10 +18,11 @@ URL = 'https://github.com/miloira/wxdb'
 EMAIL = '690126048@qq.com'
 AUTHOR = 'Msky'
 REQUIRES_PYTHON = '>=3.8.0'
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
+    "pycryptodome",
     "sqlcipher3-wheels"
 ]
 
