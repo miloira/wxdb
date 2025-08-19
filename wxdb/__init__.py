@@ -21,19 +21,27 @@ def get_wx_info(version: str = "v3") -> Dict:
         result = subprocess.run([wechat_dump_rs, "--vv", "4"], capture_output=True)
     else:
         raise ValueError(f"Not support version: {version}")
-    output = result.stdout.decode()
-    pid = re.findall("ProcessId: (.*?)\n", output)[0]
-    version = re.findall("WechatVersion: (.*?)\n", output)[0]
-    account = re.findall("AccountName: (.*?)\n", output)[0]
-    data_dir = re.findall("DataDir: (.*?)\n", output)[0]
-    key = re.findall("key: (.*?)\n", output)[0]
-    return {
-        "pid": pid,
-        "version": version,
-        "account": account,
-        "data_dir": data_dir,
-        "key": key
-    }
+
+    stdout = result.stdout.decode()
+    if not stdout:
+        raise Exception("Please login wechat.")
+    else:
+        stderr = result.stderr.decode()
+        if "panicked" in stderr:
+            raise Exception(stderr)
+
+        pid = re.findall("ProcessId: (.*?)\n", stdout)[0]
+        version = re.findall("WechatVersion: (.*?)\n", stdout)[0]
+        account = re.findall("AccountName: (.*?)\n", stdout)[0]
+        data_dir = re.findall("DataDir: (.*?)\n", stdout)[0]
+        key = re.findall("key: (.*?)\n", stdout)[0]
+        return {
+            "pid": pid,
+            "version": version,
+            "account": account,
+            "data_dir": data_dir,
+            "key": key
+        }
 
 
 def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
@@ -200,6 +208,8 @@ class WXDB:
         self.key = key
         self.wx_dir = wx_dir
         self.version = version
+        if self.version not in ["v3", "v4"]:
+            raise ValueError(f"Not support version: {self.version}")
 
     def get_db_path(self, db_name):
         return os.path.join(self.wx_dir, db_name)
@@ -217,8 +227,6 @@ class WXDB:
             self.conn.execute(f"PRAGMA kdf_iter = 256000;")
             self.conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA256;")
             self.conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA256;")
-        else:
-            raise ValueError(f"Not support version: {self.version}")
 
         return self.conn
 
@@ -231,5 +239,5 @@ def get_wx_db(version="v3"):
 if __name__ == '__main__':
     wx_db = get_wx_db()
     conn = wx_db.connect(r"Msg\Multi\MSG0.db")
-    print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
-    conn.close()
+    with conn:
+        print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
