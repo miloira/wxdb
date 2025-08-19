@@ -1,13 +1,12 @@
-import hashlib
-import hmac
 import binascii
-from typing import Dict
-
-from Crypto.Cipher import AES
-
 import os
 import re
 import subprocess
+import hashlib
+import hmac
+
+from Crypto.Cipher import AES
+from typing import Dict
 
 from sqlcipher3 import dbapi2 as sqlite
 
