@@ -5,7 +5,7 @@ import subprocess
 import hashlib
 import hmac
 
-from Cryptodome.Cipher import AES
+from Crypto.Cipher import AES
 from typing import Dict
 
 from sqlcipher3 import dbapi2 as sqlite
@@ -196,11 +196,7 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
     else:
         raise ValueError(f"Not support version: {version}")
 
-    # 拼接 key 和 salt
-    rawkey = key + salt
-
-    # 返回十六进制字符串，前面加 0x
-    return binascii.hexlify(rawkey).decode()
+    return binascii.hexlify(key + salt).decode()
 
 
 class WXDB:
