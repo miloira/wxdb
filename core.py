@@ -11,12 +11,15 @@ import subprocess
 
 from sqlcipher3 import dbapi2 as sqlite
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+wechat_dump_rs = os.path.join(BASE_DIR, "wechat-dump-rs.exe")
+
 
 def get_wx_info(version: str = "v3") -> Dict:
     if version == "v3":
-        result = subprocess.run(["wechat-dump-rs.exe", "--vv", "3"], capture_output=True)
+        result = subprocess.run([wechat_dump_rs, "--vv", "3"], capture_output=True)
     elif version == "v4":
-        result = subprocess.run(["wechat-dump-rs.exe", "--vv", "4"], capture_output=True)
+        result = subprocess.run([wechat_dump_rs, "--vv", "4"], capture_output=True)
     else:
         raise ValueError(f"Not support version: {version}")
     output = result.stdout.decode()
@@ -194,7 +197,7 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
 
 
 class WXDB:
-    def __init__(self, key, wx_dir=None, version="v3"):
+    def __init__(self, key, wx_dir, version="v3"):
         self.key = key
         self.wx_dir = wx_dir
         self.version = version
