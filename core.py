@@ -1,8 +1,37 @@
 import hashlib
 import hmac
 import binascii
+from typing import Dict
 
 from Crypto.Cipher import AES
+
+import os
+import re
+import subprocess
+
+from sqlcipher3 import dbapi2 as sqlite
+
+
+def get_wx_info(version: str = "v3") -> Dict:
+    if version == "v3":
+        result = subprocess.run(["wechat-dump-rs.exe", "--vv", "3"], capture_output=True)
+    elif version == "v4":
+        result = subprocess.run(["wechat-dump-rs.exe", "--vv", "4"], capture_output=True)
+    else:
+        raise ValueError(f"Not support version: {version}")
+    output = result.stdout.decode()
+    pid = re.findall("ProcessId: (.*?)\n", output)[0]
+    version = re.findall("WechatVersion: (.*?)\n", output)[0]
+    account = re.findall("AccountName: (.*?)\n", output)[0]
+    data_dir = re.findall("DataDir: (.*?)\n", output)[0]
+    key = re.findall("key: (.*?)\n", output)[0]
+    return {
+        "pid": pid,
+        "version": version,
+        "account": account,
+        "data_dir": data_dir,
+        "key": key
+    }
 
 
 def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
@@ -118,7 +147,7 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
 
         # 计算 HMAC-SHA512
         mac_data = buf[start + offset:end - reserve + IV_SIZE]
-        page_num_bytes = (cur_page + 1).to_bytes(4, byteorder='little')
+        page_num_bytes = (cur_page + 1).to_bytes(4, byteorder="little")
         mac = hmac.new(mac_key, mac_data + page_num_bytes, hashlib.sha512).digest()
 
         hash_mac_start_offset = end - reserve + IV_SIZE
@@ -161,12 +190,43 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
     rawkey = key + salt
 
     # 返回十六进制字符串，前面加 0x
-    return "0x" + binascii.hexlify(rawkey).decode()
+    return binascii.hexlify(rawkey).decode()
+
+
+class WXDB:
+    def __init__(self, key, wx_dir=None, version="v3"):
+        self.key = key
+        self.wx_dir = wx_dir
+        self.version = version
+
+    def get_db_path(self, db_name):
+        return os.path.join(self.wx_dir, db_name)
+
+    def connect(self, db_name):
+        self.conn = sqlite.connect(self.get_db_path(db_name))
+        db_key = get_db_key(self.key, self.get_db_path(db_name), self.version)
+        self.conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
+        self.conn.execute(f"PRAGMA cipher_page_size = 4096;")
+        if self.version == "v3":
+            self.conn.execute(f"PRAGMA kdf_iter = 64000;")
+            self.conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA1;")
+            self.conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA1;")
+        elif self.version == "v4":
+            self.conn.execute(f"PRAGMA kdf_iter = 256000;")
+            self.conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA256;")
+            self.conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA256;")
+        else:
+            raise ValueError(f"Not support version: {self.version}")
+
+        return self.conn
+
+
+def get_wx_db(version="v3"):
+    wx_info = get_wx_info(version)
+    return WXDB(key=wx_info["key"], wx_dir=wx_info["data_dir"], version=version)
 
 
 if __name__ == '__main__':
-    key = "b2a1c68323c14ebbb18ce6be0b91b12ccef961d15e504e3eb1d1b58bf9b058f0"
-    MSG1_DB = r"C:\Users\69012\Documents\WeChat Files\<wxid>\Msg\Multi\MSG1.db"
-    data = decrypt_db_file_v3(MSG1_DB, key)
-    with open("MSG1.db", "wb") as f:
-        f.write(data)
+    wx_db = get_wx_db()
+    conn = wx_db.connect(r"Msg\Multi\MSG0.db")
+    print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
