@@ -233,3 +233,4 @@ if __name__ == '__main__':
     wx_db = get_wx_db()
     conn = wx_db.connect(r"Msg\Multi\MSG0.db")
     print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
+    conn.close()
