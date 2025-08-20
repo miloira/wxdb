@@ -244,7 +244,6 @@ def get_wx_db(version="v3"):
 
 if __name__ == '__main__':
     wx_db = get_wx_db()
-    print(wx_db)
     msg_db_name = wx_db.get_current_msg_db_name()
     conn = wx_db.create_connection(rf"Msg\Multi\{msg_db_name}")
     with conn:
