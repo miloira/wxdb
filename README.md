@@ -17,11 +17,18 @@ pip install wxdb
 ```python
 from wxdb import get_wx_db
 
-wx_db = get_wx_db()
-msg_db_name = wx_db.get_current_msg_db_name()
-conn = wx_db.create_connection(rf"Msg\Multi\{msg_db_name}")
-with conn:
-    print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
+try:
+    wx_db = get_wx_db("v3")
+    msg_db_name = wx_db.get_current_msg_db_name()
+    conn = wx_db.create_connection(rf"Msg\Multi\{msg_db_name}")
+    with conn:
+        print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
+except Exception as e:
+    wx_db = get_wx_db("v4")
+    msg_db_name = wx_db.get_current_msg_db_name()
+    conn = wx_db.create_connection(rf"db_storage\message\{msg_db_name}")
+    with conn:
+        print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
 ```
 
 ### 解密微信数据库文件

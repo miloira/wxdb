@@ -14,11 +14,20 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 wechat_dump_rs = os.path.join(BASE_DIR, "wechat-dump-rs.exe")
 
 
-def get_wx_info(version: str = "v3") -> Dict:
+def wechat_dump(options: Dict) -> subprocess.CompletedProcess:
+    cmd_args = []
+    for k, v in options.items():
+        if v is not None:
+            cmd_args.append(k)
+            cmd_args.append(v)
+    return subprocess.run([wechat_dump_rs, *cmd_args], capture_output=True)
+
+
+def get_wx_info(version: str = "v3", pid: int = None) -> Dict:
     if version == "v3":
-        result = subprocess.run([wechat_dump_rs, "--vv", "3"], capture_output=True)
+        result = wechat_dump({"-p": pid, "--vv": "3"})
     elif version == "v4":
-        result = subprocess.run([wechat_dump_rs, "--vv", "4"], capture_output=True)
+        result = wechat_dump({"-p": pid, "--vv": "4"})
     else:
         raise ValueError(f"Not support version: {version}")
 
@@ -185,6 +194,8 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
     with open(path, "rb") as f:
         salt = f.read(SALT_SIZE)
 
+    print(pkey)
+
     # 将十六进制的 pkey 解码为 bytes
     pass_bytes = binascii.unhexlify(pkey)
 
@@ -200,7 +211,7 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
 
 
 class WXDB:
-    def __init__(self, pid, account, key, data_dir, version):
+    def __init__(self, pid: int, account: str, key: str, data_dir: str, version: str):
         self.pid = pid
         self.account = account
         self.key = key
@@ -209,14 +220,24 @@ class WXDB:
         if not self.version.startswith("3") and not self.version.startswith("4"):
             raise ValueError(f"Not support version: {self.version}")
 
-    def get_db_path(self, db_name):
+    def get_db_path(self, db_name: str) -> str:
         return os.path.join(self.data_dir, db_name)
 
-    def get_current_msg_db_name(self):
-        with open(os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
-            return f.read()
+    def get_current_msg_db_name(self) -> str:
+        if self.version.startswith("3"):
+            with open(os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
+                return f.read()
+        elif self.version.startswith("4"):
+            msg0_file = os.path.join(self.data_dir, r"db_storage\message\message_0.db")
+            msg1_file = os.path.join(self.data_dir, r"db_storage\message\message_1.db")
+            if os.path.getmtime(msg0_file) < os.path.getmtime(msg1_file):
+                return "message_0.db"
+            else:
+                return "message_1.db"
+        else:
+            raise ValueError(f"Not support version: {self.version}")
 
-    def create_connection(self, db_name):
+    def create_connection(self, db_name: str) -> sqlite.Connection:
         conn = sqlite.connect(self.get_db_path(db_name))
         db_key = get_db_key(self.key, self.get_db_path(db_name), self.version)
         conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
@@ -227,8 +248,8 @@ class WXDB:
             conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA1;")
         elif self.version.startswith("4"):
             conn.execute(f"PRAGMA kdf_iter = 256000;")
-            conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA256;")
-            conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA256;")
+            conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA512;")
+            conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA512;")
         return conn
 
     def __repr__(self):
@@ -243,8 +264,15 @@ def get_wx_db(version="v3"):
 
 
 if __name__ == '__main__':
-    wx_db = get_wx_db()
-    msg_db_name = wx_db.get_current_msg_db_name()
-    conn = wx_db.create_connection(rf"Msg\Multi\{msg_db_name}")
-    with conn:
-        print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
+    try:
+        wx_db = get_wx_db("v3")
+        msg_db_name = wx_db.get_current_msg_db_name()
+        conn = wx_db.create_connection(rf"Msg\Multi\{msg_db_name}")
+        with conn:
+            print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
+    except Exception as e:
+        wx_db = get_wx_db("v4")
+        msg_db_name = wx_db.get_current_msg_db_name()
+        conn = wx_db.create_connection(rf"db_storage\message\{msg_db_name}")
+        with conn:
+            print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
