@@ -30,7 +30,7 @@ def get_wx_info(version: str = "v3") -> Dict:
         if "panicked" in stderr:
             raise Exception(stderr)
 
-        pid = re.findall("ProcessId: (.*?)\n", stdout)[0]
+        pid = int(re.findall("ProcessId: (.*?)\n", stdout)[0])
         version = re.findall("WechatVersion: (.*?)\n", stdout)[0]
         account = re.findall("AccountName: (.*?)\n", stdout)[0]
         data_dir = re.findall("DataDir: (.*?)\n", stdout)[0]
@@ -189,9 +189,9 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
     pass_bytes = binascii.unhexlify(pkey)
 
     # 根据版本选择哈希算法和迭代次数
-    if version == "v3":
+    if version.startswith("3"):
         key = hashlib.pbkdf2_hmac("sha1", pass_bytes, salt, ROUND_COUNT_V3, dklen=KEY_SIZE)
-    elif version == "v4":
+    elif version.startswith("4"):
         key = hashlib.pbkdf2_hmac("sha512", pass_bytes, salt, ROUND_COUNT_V4, dklen=KEY_SIZE)
     else:
         raise ValueError(f"Not support version: {version}")
@@ -200,18 +200,20 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
 
 
 class WXDB:
-    def __init__(self, key, wx_dir, version="v3"):
+    def __init__(self, pid, account, key, data_dir, version):
+        self.pid = pid
+        self.account = account
         self.key = key
-        self.wx_dir = wx_dir
+        self.data_dir = data_dir[:-1]
         self.version = version
-        if self.version not in ["v3", "v4"]:
+        if not self.version.startswith("3") and not self.version.startswith("4"):
             raise ValueError(f"Not support version: {self.version}")
 
     def get_db_path(self, db_name):
-        return os.path.join(self.wx_dir, db_name)
+        return os.path.join(self.data_dir, db_name)
 
     def get_current_msg_db_name(self):
-        with open(os.path.join(self.wx_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
+        with open(os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
             return f.read()
 
     def create_connection(self, db_name):
@@ -219,24 +221,30 @@ class WXDB:
         db_key = get_db_key(self.key, self.get_db_path(db_name), self.version)
         conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
         conn.execute(f"PRAGMA cipher_page_size = 4096;")
-        if self.version == "v3":
+        if self.version.startswith("3"):
             conn.execute(f"PRAGMA kdf_iter = 64000;")
             conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA1;")
             conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA1;")
-        elif self.version == "v4":
+        elif self.version.startswith("4"):
             conn.execute(f"PRAGMA kdf_iter = 256000;")
             conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA256;")
             conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA256;")
         return conn
 
+    def __repr__(self):
+        return f"WXDB(pid={repr(self.pid)}, account={repr(self.account)}, key={repr(self.key)}, data_dir={repr(self.data_dir)}, version={repr(self.version)})"
+
+    __str__ = __repr__
+
 
 def get_wx_db(version="v3"):
     wx_info = get_wx_info(version)
-    return WXDB(key=wx_info["key"], wx_dir=wx_info["data_dir"], version=version)
+    return WXDB(**wx_info)
 
 
 if __name__ == '__main__':
     wx_db = get_wx_db()
+    print(wx_db)
     msg_db_name = wx_db.get_current_msg_db_name()
     conn = wx_db.create_connection(rf"Msg\Multi\{msg_db_name}")
     with conn:
