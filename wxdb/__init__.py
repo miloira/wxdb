@@ -258,8 +258,8 @@ class WXDB:
     __str__ = __repr__
 
 
-def get_wx_db(version="v3"):
-    wx_info = get_wx_info(version)
+def get_wx_db(version="v3", pid: int = None) -> WXDB:
+    wx_info = get_wx_info(version, pid)
     return WXDB(**wx_info)
 
 
