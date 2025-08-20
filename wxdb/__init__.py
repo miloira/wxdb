@@ -210,21 +210,24 @@ class WXDB:
     def get_db_path(self, db_name):
         return os.path.join(self.wx_dir, db_name)
 
-    def connect(self, db_name):
-        self.conn = sqlite.connect(self.get_db_path(db_name))
-        db_key = get_db_key(self.key, self.get_db_path(db_name), self.version)
-        self.conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
-        self.conn.execute(f"PRAGMA cipher_page_size = 4096;")
-        if self.version == "v3":
-            self.conn.execute(f"PRAGMA kdf_iter = 64000;")
-            self.conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA1;")
-            self.conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA1;")
-        elif self.version == "v4":
-            self.conn.execute(f"PRAGMA kdf_iter = 256000;")
-            self.conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA256;")
-            self.conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA256;")
+    def get_current_msg_db_name(self):
+        with open(os.path.join(self.wx_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
+            return f.read()
 
-        return self.conn
+    def create_connection(self, db_name):
+        conn = sqlite.connect(self.get_db_path(db_name))
+        db_key = get_db_key(self.key, self.get_db_path(db_name), self.version)
+        conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
+        conn.execute(f"PRAGMA cipher_page_size = 4096;")
+        if self.version == "v3":
+            conn.execute(f"PRAGMA kdf_iter = 64000;")
+            conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA1;")
+            conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA1;")
+        elif self.version == "v4":
+            conn.execute(f"PRAGMA kdf_iter = 256000;")
+            conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA256;")
+            conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA256;")
+        return conn
 
 
 def get_wx_db(version="v3"):
@@ -234,6 +237,7 @@ def get_wx_db(version="v3"):
 
 if __name__ == '__main__':
     wx_db = get_wx_db()
-    conn = wx_db.connect(r"Msg\Multi\MSG0.db")
+    msg_db_name = wx_db.get_current_msg_db_name()
+    conn = wx_db.create_connection(rf"Msg\Multi\{msg_db_name}")
     with conn:
         print(conn.execute("SELECT * FROM sqlite_master;").fetchall())
