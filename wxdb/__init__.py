@@ -194,8 +194,6 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
     with open(path, "rb") as f:
         salt = f.read(SALT_SIZE)
 
-    print(pkey)
-
     # 将十六进制的 pkey 解码为 bytes
     pass_bytes = binascii.unhexlify(pkey)
 
