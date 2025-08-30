@@ -1,5 +1,5 @@
 import time
-from typing import Callable, Dict, List, Any, Optional, Tuple
+from typing import Callable, Dict, List, Any, Optional, Tuple, Union
 
 import blackboxprotobuf
 import xmltodict
@@ -9,6 +9,38 @@ from pyee.executor import ExecutorEventEmitter
 
 from wxdb import get_wx_db
 from wxdb.logger import logger
+
+TEXT_MESSAGE = (1, 0)  # 文本消息
+IMAGE_MESSAGE = (3, 0)  # 图片消息
+VOICE_MESSAGE = (34, 0)  # 语言消息
+GREETING_MESSAGE = (37, 0)  # 打招呼，加好友时的自我介绍消息
+FRIEND_RECOMMEND_MESSAGE = (42, 0)  # 向别人推荐好友消息
+VIDEO_MESSAGE = (43, 0)  # 视频消息
+EMOTION_MESSAGE = (47, 0)  # 表情消息
+LOCATION_MESSAGE = (48, 0)  # 位置消息
+APP_MESSAGE = (49, 1)  # 特殊文字消息消息（如阿里云盘邀请、飞书日程）
+BILIBILI_SHARE_MESSAGE = (49, 4)  # 分享哔哩哔哩视频消息
+CARD_LINK_MESSAGE = (49, 5)  # 卡片链接消息
+FILE_MESSAGE = (49, 6)  # 文件消息
+GIF_MESSAGE = (49, 8)  # GIF消息
+MERGED_FORWARD_MESSAGE = (49, 19)  # 合并转发聊天记录消息
+MINI_APP_MESSAGE = (49, 33)  # 小程序分享消息
+MINI_APP_2_MESSAGE = (49, 36)  # 小程序分享消息另一种
+MICRO_VIDEO_MESSAGE = (49, 50)  # 微视频消息
+MOMENT_SHARE_MESSAGE = (49, 51)  # 分享朋友圈动态消息
+CHAIN_MESSAGE = (49, 53)  # 接龙消息
+QUOTED_TEXT_MESSAGE = (49, 57)  # 带引用的文本消息
+CHANNEL_LIVE_MESSAGE = (49, 63)  # 视频号直播或回放消息
+SONG_SHARE_MESSAGE = (49, 76)  # 分享歌曲消息
+GROUP_ANNOUNCEMENT_MESSAGE = (49, 87)  # 群公告消息
+CHANNEL_LIVE_2_MESSAGE = (49, 88)  # 视频号直播/直播回放消息
+TRANSFER_MESSAGE = (49, 2000)  # 转账消息
+RED_PACKET_MESSAGE = (49, 2003)  # 红包消息
+VOICE_CALL_MESSAGE = (50, 0)  # 语音电话消息
+FRIEND_RECOMMENDATION_MESSAGE = (65, 0)  # 朋友推荐消息
+SYSTEM_MESSAGE = (10000, 0)  # 系统通知消息
+PAT_MESSAGE = (10000, 4)  # 拍一拍消息
+INVITATION_MESSAGE = (10000, 8000)  # 邀请入群通知消息
 
 
 def parse_xml(xml: str) -> Dict[str, Any]:
@@ -374,10 +406,18 @@ class WeChatListener:
                 "SELECT * FROM MSG WHERE Type = 10000 AND SubType = 0 ORDER BY localId DESC LIMIT 1;").fetchone()
             return self.get_event(row)
 
-    def handle(self, type: int, sub_type: int, once: bool = False) -> Callable[[Callable[..., Any]], None]:
+    def handle(self, events: Union[tuple, list] = (0, 0), once: bool = False) -> Callable[[Callable[..., Any]], None]:
         def wrapper(func: Callable[..., Any]) -> None:
             listen = self.event_emitter.on if not once else self.event_emitter.once
-            listen(f"{type}:{sub_type}", func)
+            if isinstance(events, tuple):
+                type, sub_type = events
+                listen(f"{type}:{sub_type}", func)
+            elif isinstance(events, list):
+                for event in events:
+                    type, sub_type = event
+                    listen(f"{type}:{sub_type}", func)
+            else:
+                raise TypeError("events must be tuple or list.")
 
         return wrapper
 
@@ -420,7 +460,7 @@ if __name__ == '__main__':
     wechat_listener = WeChatListener()
 
 
-    @wechat_listener.handle(0, 0)
+    @wechat_listener.handle(TEXT_MESSAGE)
     def on_message(wechat_listener: WeChatListener, event: Dict[str, Any]) -> None:
         print(wechat_listener, event)
 
