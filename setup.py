@@ -18,12 +18,17 @@ URL = 'https://github.com/miloira/wxdb'
 EMAIL = '690126048@qq.com'
 AUTHOR = 'Msky'
 REQUIRES_PYTHON = '>=3.8.0'
-VERSION = '0.0.7'
+VERSION = '0.0.8'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
+    "blackboxprotobuf",
+    "loguru",
+    "lz4",
     "pycryptodome",
-    "sqlcipher3-wheels"
+    "pyee",
+    "sqlcipher3-wheels",
+    "xmltodict"
 ]
 
 # What packages are optional?
