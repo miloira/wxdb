@@ -320,12 +320,16 @@ class WeChatListener:
             "is_sender": message["is_sender"],
             "create_time": message["create_time"],
             "msg": message["str_content"],
-            "raw_msg": "",
+            "raw_msg": None,
             "at_user_list": [],
-            "room_wxid": "",
-            "from_wxid": "",
-            "to_wxid": ""
+            "room_wxid": None,
+            "from_wxid": None,
+            "to_wxid": None,
+            "extra": None
         }
+
+        bytes_extra = deserialize_bytes_extra(message["bytes_extra"])
+        data["extra"] = bytes_extra
 
         if message["compress_content"] is not None:
             data["raw_msg"] = decompress_compress_content(message["compress_content"])
@@ -344,7 +348,6 @@ class WeChatListener:
                 data["to_wxid"] = self.self_wxid
 
         if data.get("room_wxid"):
-            bytes_extra = deserialize_bytes_extra(message["bytes_extra"])
             if isinstance(bytes_extra, dict) and data["is_sender"] == 0:
                 data["from_wxid"] = get_room_member_wxid(bytes_extra)
             try:
